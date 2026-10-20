@@ -1408,7 +1408,8 @@ u32 CIrrDeviceSDL::getFullscreenFlag(bool fullscreen)
 	if (!fullscreen)
 		return 0;
 #ifdef _IRR_EMSCRIPTEN_PLATFORM_
-	return SDL_WINDOW_FULLSCREEN;
+	// The web page owns full screen
+	return 0;
 #else
 	return SDL_WINDOW_FULLSCREEN_DESKTOP;
 #endif
@@ -1419,6 +1420,10 @@ bool CIrrDeviceSDL::setFullscreen(bool fullscreen)
 {
 	if (!Window)
 		return false;
+#ifdef _IRR_EMSCRIPTEN_PLATFORM_
+	// The web page owns full screen
+	return false;
+#endif
 #ifdef _IRR_USE_SDL3_
 	bool success = SDL_SetWindowFullscreen(Window, fullscreen);
 #else

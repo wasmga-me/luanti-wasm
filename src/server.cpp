@@ -75,6 +75,9 @@
 #include <algorithm>
 #include <sstream>
 #include <csignal>
+#ifdef __EMSCRIPTEN__
+#include "mainloop.h"
+#endif
 
 class ClientNotFoundException : public BaseException
 {
@@ -380,6 +383,10 @@ Server::~Server()
 	if (m_emerge)
 		m_emerge->stopThreads();
 
+#ifdef __EMSCRIPTEN__
+	std::unique_lock<std::mutex> wg_lock(wg_files_mutex);
+#endif
+
 	if (m_env) {
 		EnvAutoLock envlock(this);
 
@@ -429,6 +436,9 @@ Server::~Server()
 	// Write any changes before deletion.
 	if (m_mod_storage_database)
 		m_mod_storage_database->endSave();
+#ifdef __EMSCRIPTEN__
+	wg_lock.unlock();
+#endif
 
 	// Clean up files
 	for (auto &it : m_media) {
@@ -660,6 +670,9 @@ void Server::step()
 void Server::AsyncRunStep(float dtime, bool initial_step)
 {
 	ZoneScoped;
+#ifdef __EMSCRIPTEN__
+	std::lock_guard<std::mutex> wg_lock(wg_files_mutex);
+#endif
 	auto framemarker = FrameMarker("Server::AsyncRunStep()-frame").started();
 
 	if (!m_async_fatal_error.get().empty()) {

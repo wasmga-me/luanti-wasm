@@ -114,18 +114,25 @@ function singleplayer_refresh_gamebar()
 		btnbar:add_button(btn_name, text, image, tooltip)
 	end
 
-	local plus_image = core.formspec_escape(defaulttexturedir .. "plus.png")
-	btnbar:add_button("game_open_cdb", "", plus_image, fgettext("Install games from ContentDB"))
+	if PLATFORM ~= "Emscripten" then
+		local plus_image = core.formspec_escape(defaulttexturedir .. "plus.png")
+		btnbar:add_button("game_open_cdb", "", plus_image, fgettext("Install games from ContentDB"))
+	end
 	return true
 end
 
 local function get_disabled_settings(game)
+	-- On the web: single player only
+	local disabled_settings = {}
+	if PLATFORM == "Emscripten" then
+		disabled_settings["enable_server"] = false
+		core.settings:set_bool("enable_server", false)
+	end
 	if not game then
-		return {}
+		return disabled_settings
 	end
 
 	local gameconfig = Settings(game.path .. "/game.conf")
-	local disabled_settings = {}
 	if gameconfig then
 		local disabled_settings_str = (gameconfig:get("disabled_settings") or ""):split()
 		for _, value in pairs(disabled_settings_str) do

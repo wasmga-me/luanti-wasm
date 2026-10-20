@@ -379,7 +379,8 @@ local function check_requirements(name, requires, context)
 	local shadows_support = core.driver_supports_shadows()
 	local special = {
 		android = PLATFORM == "Android",
-		desktop = PLATFORM ~= "Android",
+		-- on the web the page sizes the game's window and keeps its files
+		desktop = PLATFORM ~= "Android" and PLATFORM ~= "Emscripten",
 		touch_support = touch_support,
 		-- When touch_controls is "auto", we don't know which input method will
 		-- be used, so we show settings for both.

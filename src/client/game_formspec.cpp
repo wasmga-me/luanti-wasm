@@ -416,9 +416,11 @@ void GameFormSpec::showPauseMenu()
 		// TRANSLATORS: Pause menu button, try to keep the translation short
 		<< strgettext("Exit to Menu") << "]";
 
+#ifndef __EMSCRIPTEN__ // the web page is the game's window: nothing to exit to
 	os << "button_exit[0," << (ypos += button_height + spacing) << ";3.5," << button_height << ";btn_exit_os;"
 		// TRANSLATORS: Pause menu button, try to keep the translation short (OS = Operating System)
 		<< strgettext("Exit to OS") << "]";
+#endif
 
 	os << "container_end[]";
 	if (!control_text.empty()) {

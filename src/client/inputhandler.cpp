@@ -3,6 +3,9 @@
 // Copyright (C) 2010-2013 celeron55, Perttu Ahola <celeron55@gmail.com>
 // Copyright (C) 2017 nerzhul, Loic Blot <loic.blot@unix-experience.fr>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 #include "porting.h"
 #include "settings.h"
 #include "util/numeric.h"
@@ -231,6 +234,13 @@ bool MyEventReceiver::OnEvent(const SEvent &event)
 
 		if (keySettingHasMatch("keymap_fullscreen", keyCode)) {
 			if (event.KeyInput.PressedDown && !fullscreen_is_down) {
+#ifdef __EMSCRIPTEN__
+				// The web page owns full screen
+				MAIN_THREAD_ASYNC_EM_ASM({
+					if (typeof wg_toggle_fullscreen === "function")
+						wg_toggle_fullscreen();
+				});
+#else
 				IrrlichtDevice *device = RenderingEngine::get_raw_device();
 
 				bool new_fullscreen = !device->isFullscreen();
@@ -238,6 +248,7 @@ bool MyEventReceiver::OnEvent(const SEvent &event)
 				if (device->setFullscreen(new_fullscreen)) {
 					g_settings->setBool("fullscreen", new_fullscreen);
 				}
+#endif
 			}
 			fullscreen_is_down = event.KeyInput.PressedDown;
 			return true;

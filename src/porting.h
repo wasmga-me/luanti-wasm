@@ -247,6 +247,8 @@ inline const char *getPlatformName()
 	return
 #if defined(ANDROID)
 	"Android"
+#elif defined(__EMSCRIPTEN__)
+	"Emscripten"
 #elif defined(__linux__)
 	"Linux"
 #elif defined(_WIN32) || defined(_WIN64)

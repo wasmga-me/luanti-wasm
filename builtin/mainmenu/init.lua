@@ -49,6 +49,10 @@ local tabs = {
 
 local function main_event_handler(tabview, event)
 	if event == "MenuQuit" then
+		-- The web page is the game's window: there is nothing to quit to
+		if PLATFORM == "Emscripten" then
+			return true
+		end
 		local show_dialog = core.settings:get_bool("enable_esc_dialog")
 		if not ui.childlist["mainmenu_quit_confirm"] and show_dialog then
 			tabview:hide()
@@ -111,8 +115,11 @@ local function init_globals()
 
 	tv_main:set_autosave_tab(true)
 	tv_main:add(tabs.local_game)
-	tv_main:add(tabs.play_online)
-	tv_main:add(tabs.content)
+	-- On the web: single player only, without ContentDB
+	if PLATFORM ~= "Emscripten" then
+		tv_main:add(tabs.play_online)
+		tv_main:add(tabs.content)
+	end
 	tv_main:add(tabs.about)
 
 	tv_main:set_global_event_handler(main_event_handler)
@@ -143,10 +150,12 @@ local function init_globals()
 	-- synchronous, chain parents to only show one at a time
 	local parent = tv_main
 	parent = migrate_keybindings(parent)
-	check_reinstall_mtg(parent)
+	if PLATFORM ~= "Emscripten" then
+		check_reinstall_mtg(parent)
 
-	-- asynchronous, will only be shown if we're still on "maintab"
-	check_new_version()
+		-- asynchronous, will only be shown if we're still on "maintab"
+		check_new_version()
+	end
 end
 
 assert(os.execute == nil)

@@ -88,7 +88,9 @@ return {
 			core.formspec_escape(version.project .. " " .. version.string) .. "]" ..
 			"button_url[1.5,4.1;2.5,0.8;homepage;luanti.org;https://www.luanti.org/]"
 
-		if PLATFORM == "Android" then
+		if PLATFORM == "Emscripten" then
+			-- no file manager on the web
+		elseif PLATFORM == "Android" then
 			fs = fs .. "button[0.5,5.1;4.5,0.8;share_debug;" .. fgettext("Share debug log") .. "]"
 		else
 			fs = fs .. "tooltip[userdata;" ..

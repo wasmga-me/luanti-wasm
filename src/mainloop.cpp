@@ -1907,3 +1907,117 @@ int main(int argc, char *argv[])
     }, retval);
     return retval;
 }
+
+/////////////////////////////////////////////////////////////////////////////
+// wasmga.me: the player's files for the play page
+/////////////////////////////////////////////////////////////////////////////
+
+// The play page keeps minetest.conf and the worlds as the game's save. It asks
+// with wg_request_files() and gets them in wg_files(ptr, len) (ptr is the
+// page's to free), or nothing when no file changed since the last answer. The
+// files are read on a thread of their own, as the browser thread must never
+// wait on the file system, and between server steps, so a world comes whole.
+// Laid out as, for each file: u32 path length, path, u32 size, bytes.
+
+extern "C" {
+    EMSCRIPTEN_KEEPALIVE
+    void wg_request_files();
+}
+
+std::mutex wg_files_mutex;
+
+static std::mutex wg_request_mutex;
+static std::condition_variable wg_request_cond;
+static bool wg_requested = false;
+
+struct WgFile {
+    std::string path;
+    std::string full;
+    off_t size;
+};
+
+static void wg_list(const std::string &dir, const std::string &prefix,
+                    std::vector<WgFile> &out, std::string &sig) {
+    DIR *d = opendir(dir.c_str());
+    if (!d)
+        return;
+    std::vector<std::string> names;
+    while (struct dirent *e = readdir(d)) {
+        std::string n = e->d_name;
+        if (n != "." && n != "..")
+            names.push_back(n);
+    }
+    closedir(d);
+    std::sort(names.begin(), names.end());
+    for (const std::string &n : names) {
+        std::string full = dir + "/" + n;
+        struct stat st;
+        if (stat(full.c_str(), &st) != 0)
+            continue;
+        if (S_ISDIR(st.st_mode)) {
+            wg_list(full, prefix + n + "/", out, sig);
+        } else if (S_ISREG(st.st_mode)) {
+            out.push_back({prefix + n, full, st.st_size});
+            sig += prefix + n + ":" + std::to_string(st.st_size) + ":" +
+                std::to_string(st.st_mtim.tv_sec) + "." +
+                std::to_string(st.st_mtim.tv_nsec) + "\n";
+        }
+    }
+}
+
+static void wg_put32(std::string &out, uint32_t v) {
+    out.append(reinterpret_cast<const char *>(&v), 4);
+}
+
+static void wg_files_thread() {
+    std::string last;
+    for (;;) {
+        {
+            std::unique_lock<std::mutex> lock(wg_request_mutex);
+            wg_request_cond.wait(lock, []() { return wg_requested; });
+            wg_requested = false;
+        }
+        std::vector<WgFile> files;
+        std::string sig;
+        std::string out;
+        {
+            std::lock_guard<std::mutex> lock(wg_files_mutex);
+            struct stat st;
+            std::string conf = LUANTI_ROOT "/minetest.conf";
+            if (stat(conf.c_str(), &st) == 0 && S_ISREG(st.st_mode)) {
+                files.push_back({"minetest.conf", conf, st.st_size});
+                sig += "minetest.conf:" + std::to_string(st.st_size) + ":" +
+                    std::to_string(st.st_mtim.tv_sec) + "." +
+                    std::to_string(st.st_mtim.tv_nsec) + "\n";
+            }
+            wg_list(LUANTI_ROOT "/worlds", "worlds/", files, sig);
+            if (sig == last)
+                continue;
+            for (const WgFile &f : files) {
+                std::ifstream in(f.full, std::ios::binary);
+                std::string data((std::istreambuf_iterator<char>(in)),
+                                 std::istreambuf_iterator<char>());
+                wg_put32(out, f.path.size());
+                out += f.path;
+                wg_put32(out, data.size());
+                out += data;
+            }
+        }
+        last = sig;
+        char *buf = (char *)malloc(out.size() ? out.size() : 1);
+        if (!buf)
+            continue;
+        memcpy(buf, out.data(), out.size());
+        MAIN_THREAD_ASYNC_EM_ASM({ wg_files($0, $1); }, buf, out.size());
+    }
+}
+
+void wg_request_files() {
+    static std::once_flag started;
+    std::call_once(started, []() { std::thread(wg_files_thread).detach(); });
+    {
+        std::lock_guard<std::mutex> lock(wg_request_mutex);
+        wg_requested = true;
+    }
+    wg_request_cond.notify_one();
+}
